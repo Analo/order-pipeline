@@ -1,0 +1,20 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfstate.d/
+*.tfplan
+*.zip
+terraform/backend.hcl
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+
+# OS
+.DS_Store

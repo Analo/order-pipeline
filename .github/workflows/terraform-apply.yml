@@ -1,0 +1,63 @@
+name: Terraform Apply
+
+# Manual trigger only — never auto-apply to prevent unintended infrastructure changes.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options: [dev, staging]
+      confirm:
+        description: "Type 'apply' to confirm"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Apply
+    runs-on: ubuntu-latest
+    # Guard against accidental triggers — confirm input must be exactly "apply".
+    if: github.event.inputs.confirm == 'apply'
+
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.9"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION || 'eu-west-1' }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}" \
+            -backend-config="key=order-pipeline/terraform.tfstate" \
+            -backend-config="region=${{ secrets.AWS_REGION || 'eu-west-1' }}"
+
+      - name: Terraform Apply
+        run: |
+          terraform apply \
+            -var-file=terraform.tfvars \
+            -var="environment=${{ github.event.inputs.environment }}" \
+            -auto-approve
+
+      - name: Print outputs
+        run: terraform output

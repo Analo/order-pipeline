@@ -1,0 +1,13 @@
+# Terraform S3 backend configuration.
+# Copy to backend.hcl (gitignored) and pass at init time:
+#
+#   terraform init -backend-config=backend.hcl
+#
+# The S3 bucket and DynamoDB lock table must exist before running init.
+# Create them once manually or via a separate bootstrap Terraform config.
+
+bucket         = "your-tfstate-bucket"
+key            = "order-pipeline/terraform.tfstate"
+region         = "eu-west-1"
+dynamodb_table = "terraform-locks"
+encrypt        = true

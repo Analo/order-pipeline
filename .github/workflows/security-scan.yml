@@ -1,0 +1,67 @@
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "terraform/**"
+      - "lambda/**"
+  push:
+    branches: [main]
+    paths:
+      - "terraform/**"
+
+permissions:
+  contents: read
+  security-events: write   # allows uploading SARIF results
+
+jobs:
+  checkov:
+    name: Checkov IaC Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          # Soft-fail so the scan result is visible without blocking the PR.
+          # Harden to soft_fail: false once all findings are addressed or
+          # explicitly suppressed with inline skip comments.
+          soft_fail: true
+          output_format: cli,sarif
+          output_file_path: console,checkov-results.sarif
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+
+  bandit:
+    name: Bandit Python Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bandit
+        run: pip install bandit[sarif]
+
+      - name: Run Bandit
+        run: |
+          bandit -r lambda/ \
+            --format sarif \
+            --output bandit-results.sarif \
+            --exit-zero
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: bandit-results.sarif
