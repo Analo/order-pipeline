@@ -1,6 +1,6 @@
-# Order Pipeline — Event-Driven Order Processing on AWS
+# Order Pipeline: Event-Driven Order Processing on AWS
 
-An order placed in an e-commerce system must survive infrastructure failures, duplicate deliveries, and sudden traffic spikes — and still reach the database exactly once. This project builds and instruments that guarantee end-to-end using AWS serverless primitives.
+An order placed in an e-commerce system must survive infrastructure failures, duplicate deliveries, and sudden traffic spikes and still reach the database exactly once. This project builds and instruments that guarantee end-to-end using AWS serverless primitives.
 
 **Business outcome:** Orders are never lost, never double-counted, and failures are visible within 60 seconds via CloudWatch alarms.
 
@@ -57,7 +57,7 @@ Monitoring (CloudWatch)
 | Queue | SQS not Kinesis | Orders are independent; no cross-order ordering needed. SQS costs $0 at zero traffic. Kinesis minimum ~$11/month. See [ADR-001](docs/adr/ADR-001-sqs-vs-kinesis.md) |
 | Idempotency | Hand-rolled DynamoDB conditional write | Makes the mechanism explicit and reviewable. `ConditionExpression="attribute_not_exists(orderId)"` is one line; no external library required. See [ADR-002](docs/adr/ADR-002-idempotency-approach.md) |
 | Batch failure | `ReportBatchItemFailures` | Lambda returns individual failed message IDs so SQS retries only those, not the whole batch. One bad message cannot block nine healthy ones. |
-| DLQ signal hygiene | Validator rejects bad input before SQS | Malformed orders are rejected at the API with a 400 — they never enter the queue. This means a DLQ alarm always means a processor/infrastructure failure, never a bad API call. The signal stays clean. |
+| DLQ signal hygiene | Validator rejects bad input before SQS | Malformed orders are rejected at the API with a 400. They never enter the queue. This means a DLQ alarm always signals a processor or infrastructure failure, never a bad API call. The signal stays clean. |
 
 ---
 
@@ -68,7 +68,7 @@ After running the seed script against a deployed environment, three evidence fil
 | File | What it proves |
 |---|---|
 | `docs/evidence/seed_orders.log` | API responses: 5× 202 (valid), 4× 400 (malformed rejected), 3× 202 (duplicates accepted by API) |
-| `docs/evidence/dlq_transcript.log` | DLQ empty after seeding — malformed orders were blocked at the validator, not the processor |
+| `docs/evidence/dlq_transcript.log` | DLQ empty after seeding. Malformed orders were blocked at the validator, not the processor. |
 | `docs/evidence/idempotency_proof.md` | CloudWatch Logs showing `IDEMPOTENCY_HIT` for the 3 duplicate orders; DynamoDB showing exactly 6 unique records from 9 total messages |
 
 ---
@@ -76,10 +76,10 @@ After running the seed script against a deployed environment, three evidence fil
 ## What-If Scenarios
 
 **What if the processor Lambda crashes mid-batch?**  
-The processor returns the failed message IDs via `ReportBatchItemFailures`. SQS retries only those specific messages — the healthy ones in the same batch are deleted normally. After `maxReceiveCount` failed attempts on a single message, it moves to the DLQ and a CloudWatch alarm fires within 60 seconds.
+The processor returns the failed message IDs via `ReportBatchItemFailures`. SQS retries only those specific messages. The healthy ones in the same batch are deleted normally. After `maxReceiveCount` failed attempts on a single message, it moves to the DLQ and a CloudWatch alarm fires within 60 seconds.
 
 **What if the same orderId arrives twice?**  
-The DynamoDB conditional write (`attribute_not_exists(orderId)`) raises `ConditionalCheckFailedException` on the duplicate. The processor catches it, logs `IDEMPOTENCY_HIT`, and returns cleanly — the message is deleted from SQS. No duplicate record, no error, no alarm.
+The DynamoDB conditional write (`attribute_not_exists(orderId)`) raises `ConditionalCheckFailedException` on the duplicate. The processor catches it, logs `IDEMPOTENCY_HIT`, and returns cleanly. The message is deleted from SQS. No duplicate record, no error, no alarm.
 
 **What if DynamoDB is temporarily unavailable?**  
 The `put_item` call raises a `ClientError` that is not caught by the idempotency handler. It propagates to the outer `except Exception`, appending the `messageId` to `batchItemFailures`. SQS retries that message on the next poll cycle.
