@@ -12,8 +12,7 @@ Idempotency pattern:
 
 Batch failure reporting:
   Returns {"batchItemFailures": [...]} so SQS retries only the individual
-  messages that failed, not the whole batch. Combined with bisect_batch_on_
-  function_error=true, this prevents one poison pill from blocking all others.
+  messages that failed, not the whole batch.
 """
 
 import json
@@ -47,6 +46,13 @@ def lambda_handler(event, context):
     return {"batchItemFailures": batch_item_failures}
 
 
+def _floats_to_decimal(obj):
+    # DynamoDB rejects Python floats anywhere in the item — including nested dicts
+    # inside the items list. Re-parsing via json with parse_float=Decimal converts
+    # every float in the entire structure in one pass.
+    return json.loads(json.dumps(obj), parse_float=Decimal)
+
+
 def _process_record(record: dict) -> None:
     body = json.loads(record["body"])
     order_id = body["orderId"]
@@ -60,8 +66,7 @@ def _process_record(record: dict) -> None:
             Item={
                 "orderId": order_id,
                 "customerId": body.get("customerId"),
-                "items": body.get("items", []),
-                # DynamoDB does not support float; Decimal is the correct type.
+                "items": _floats_to_decimal(body.get("items", [])),
                 "totalAmount": Decimal(str(body.get("totalAmount", 0))),
                 "receivedAt": body.get("receivedAt"),
                 "processedAt": datetime.now(timezone.utc).isoformat(),

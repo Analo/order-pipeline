@@ -1,0 +1,26 @@
+$ python scripts/seed_orders.py --endpoint https://qe2vgn2fog.execute-api.eu-west-1.amazonaws.com/dev
+
+Target: https://qe2vgn2fog.execute-api.eu-west-1.amazonaws.com/dev/orders
+
+=== Batch 1: Valid orders (expect 202) ===
+  [202] valid                          orderId=6c7cc7b5-9829-4b…  {"orderId": "6c7cc7b5-9829-4b83-9ea0-edc7fa466c97", "status": "queued"}
+  [202] valid                          orderId=d2db939e-3479-4d…  {"orderId": "d2db939e-3479-4d83-97f2-d7b478c89c42", "status": "queued"}
+  [202] valid                          orderId=655dac17-12be-4f…  {"orderId": "655dac17-12be-4f2d-8e00-1a209c8a6c16", "status": "queued"}
+  [202] valid                          orderId=ba6b6224-61e8-45…  {"orderId": "ba6b6224-61e8-4539-8432-903ea8dd0ca3", "status": "queued"}
+  [202] valid                          orderId=7cb65ac0-6360-42…  {"orderId": "7cb65ac0-6360-42b4-98b7-219d6013e3a6", "status": "queued"}
+
+=== Batch 2: Malformed orders (expect 400) ===
+  [400] malformed                      orderId=N/A…  {"error": "Missing required fields: ['orderId']"}
+  [400] malformed                      orderId=0f38bde5-b053-45…  {"error": "items must be a non-empty list"}
+  [400] malformed                      orderId=3068ed42-fa80-4b…  {"error": "totalAmount must be a positive number"}
+  [400] malformed                      orderId=01c275bd-ccb6-4a…  {"error": "Missing required fields: ['items', 'totalAmount']"}
+
+=== Batch 3: Duplicate orders — idempotency test (expect 202, DynamoDB skips) ===
+  [202] duplicate                      orderId=6c7cc7b5-9829-4b…  {"orderId": "6c7cc7b5-9829-4b83-9ea0-edc7fa466c97", "status": "queued"}
+  [202] duplicate                      orderId=d2db939e-3479-4d…  {"orderId": "d2db939e-3479-4d83-97f2-d7b478c89c42", "status": "queued"}
+  [202] duplicate                      orderId=655dac17-12be-4f…  {"orderId": "655dac17-12be-4f2d-8e00-1a209c8a6c16", "status": "queued"}
+
+Done.
+  - DynamoDB should have 5 unique orders (duplicates skipped)
+  - DLQ should be empty (malformed orders rejected before SQS)
+  - CloudWatch Logs should show IDEMPOTENCY_HIT for 3 entries

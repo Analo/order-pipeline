@@ -1,0 +1,22 @@
+# DLQ State After Full Seed Run
+# Verified: 2026-10-23
+# Account: 437628027223 | Region: eu-west-1
+#
+# Key finding: DLQ depth = 0 after sending 5 valid + 4 malformed + 3 duplicate orders.
+#
+# Why: Malformed orders were rejected by the validator Lambda with HTTP 400
+# BEFORE they were placed on SQS. They never entered the queue, so they
+# cannot appear in the DLQ. This proves the validator is doing its job —
+# keeping bad data out of the pipeline entirely.
+
+$ aws sqs get-queue-attributes \
+    --queue-url https://sqs.eu-west-1.amazonaws.com/437628027223/order-pipeline-dev-dlq \
+    --attribute-names ApproximateNumberOfMessages \
+    --region eu-west-1 \
+    --query 'Attributes.ApproximateNumberOfMessages' \
+    --output text
+
+0
+
+# DLQ remains empty. All 9 messages that entered SQS (1 smoke + 5 valid + 3 duplicates)
+# were successfully processed — 6 written to DynamoDB, 3 skipped via idempotency.

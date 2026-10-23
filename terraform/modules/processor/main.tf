@@ -129,15 +129,16 @@ resource "aws_lambda_function" "processor" {
 }
 
 # SQS triggers the processor Lambda. batch_size=10 is the SQS maximum per poll.
-# bisect_batch_on_function_error=true means on a partial failure, Lambda splits
-# the batch and retries only the failed half — preventing good messages from
-# being stuck behind a poison pill.
+# ReportBatchItemFailures lets Lambda return individual failed message IDs so SQS
+# retries only those — preventing good messages from being stuck behind a bad one.
 resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   event_source_arn                   = var.source_queue_arn
   function_name                      = aws_lambda_function.processor.arn
   batch_size                         = 10
-  bisect_batch_on_function_error     = true
   maximum_batching_window_in_seconds = 5
 
+  # ReportBatchItemFailures: Lambda reports individual failed message IDs so SQS
+  # retries only those, not the whole batch. This is the SQS equivalent of
+  # bisect_batch_on_function_error (which only applies to Kinesis/DynamoDB Streams).
   function_response_types = ["ReportBatchItemFailures"]
 }
